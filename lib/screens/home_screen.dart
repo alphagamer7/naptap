@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/nap_button.dart';
@@ -72,46 +73,59 @@ class _HomeScreenState extends State<HomeScreen> {
                   letterSpacing: 2,
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      if (tempMinutes > 1) {
-                        setModalState(() => tempMinutes--);
-                      }
-                    },
-                    icon: const Icon(Icons.remove_circle_outline, color: AppTheme.white, size: 32),
-                  ),
-                  const SizedBox(width: 24),
-                  Text(
-                    '$tempMinutes',
-                    style: const TextStyle(
-                      color: AppTheme.white,
-                      fontSize: 48,
-                      fontWeight: FontWeight.w200,
+              const SizedBox(height: 16),
+              // Wheel picker
+              SizedBox(
+                height: 180,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Minutes wheel
+                    SizedBox(
+                      width: 100,
+                      child: CupertinoPicker(
+                        scrollController: FixedExtentScrollController(
+                          initialItem: tempMinutes - 1,
+                        ),
+                        itemExtent: 50,
+                        selectionOverlay: Container(
+                          decoration: BoxDecoration(
+                            border: Border.symmetric(
+                              horizontal: BorderSide(
+                                color: AppTheme.lightGrey.withAlpha(50),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        onSelectedItemChanged: (index) {
+                          setModalState(() => tempMinutes = index + 1);
+                        },
+                        children: List.generate(120, (index) {
+                          return Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: const TextStyle(
+                                color: AppTheme.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.w300,
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'min',
-                    style: TextStyle(
-                      color: AppTheme.lightGrey,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w300,
+                    const SizedBox(width: 8),
+                    const Text(
+                      'min',
+                      style: TextStyle(
+                        color: AppTheme.lightGrey,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w300,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 24),
-                  IconButton(
-                    onPressed: () {
-                      if (tempMinutes < 120) {
-                        setModalState(() => tempMinutes++);
-                      }
-                    },
-                    icon: const Icon(Icons.add_circle_outline, color: AppTheme.white, size: 32),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               SizedBox(

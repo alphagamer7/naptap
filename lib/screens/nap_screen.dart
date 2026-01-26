@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -9,6 +10,7 @@ import '../services/settings_service.dart';
 import '../services/screen_lock_service.dart';
 import '../services/database_service.dart';
 import '../services/step_counter_service.dart';
+import '../services/notification_service.dart';
 
 class NapScreen extends StatefulWidget {
   final int durationMinutes;
@@ -28,6 +30,7 @@ class _NapScreenState extends State<NapScreen> with WidgetsBindingObserver {
   final TimerService _timerService = TimerService.getInstance();
   final AlarmService _alarmService = AlarmService.getInstance();
   final DatabaseService _dbService = DatabaseService.getInstance();
+  final NotificationService _notificationService = NotificationService.getInstance();
   late final StepCounterService _stepService;
 
   bool _isAlarmRinging = false;
@@ -82,6 +85,8 @@ class _NapScreenState extends State<NapScreen> with WidgetsBindingObserver {
   }
 
   void _onNapComplete() async {
+    debugPrint('NapScreen: _onNapComplete called!');
+
     // Stop screen pinning when alarm rings so user can dismiss
     await ScreenLockService.stopLockTask();
 
@@ -94,14 +99,17 @@ class _NapScreenState extends State<NapScreen> with WidgetsBindingObserver {
       ));
     }
 
+    debugPrint('NapScreen: Setting _isAlarmRinging = true');
     setState(() {
       _isAlarmRinging = true;
       _showTapHint = true;
       _showTime = false;
       _stepsWalked = 0;
     });
+    debugPrint('NapScreen: setState complete, _isAlarmRinging = $_isAlarmRinging');
 
     // Start step tracking for walk-to-dismiss
+    debugPrint('NapScreen: Starting step tracking...');
     await _stepService.startTracking(
       onStepUpdate: (steps, required) {
         if (mounted) {
@@ -115,10 +123,17 @@ class _NapScreenState extends State<NapScreen> with WidgetsBindingObserver {
       },
     );
 
+    // Show notification with sound (works in silent mode on iOS)
+    debugPrint('NapScreen: Showing alarm notification...');
+    await _notificationService.showAlarmNotification();
+
+    // Also start the in-app alarm
+    debugPrint('NapScreen: Starting in-app alarm...');
     await _alarmService.startAlarm(
       playSound: widget.settingsService.soundEnabled,
       vibrate: widget.settingsService.vibrationEnabled,
     );
+    debugPrint('NapScreen: Alarm started');
   }
 
   void _onScreenTap() {
@@ -146,6 +161,7 @@ class _NapScreenState extends State<NapScreen> with WidgetsBindingObserver {
   Future<void> _stopAlarmAndReturn() async {
     _stepService.stopTracking();
     await _alarmService.stopAlarm();
+    await _notificationService.cancelAlarmNotification();
     await ScreenLockService.stopLockTask();
     await WakelockPlus.disable();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

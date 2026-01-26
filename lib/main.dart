@@ -5,6 +5,7 @@ import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 import 'services/settings_service.dart';
 import 'services/timer_service.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,10 @@ void main() async {
   final settingsService = await SettingsService.getInstance();
   final timerService = TimerService.getInstance();
   await timerService.initialize();
+
+  // Initialize notification service for alarm sounds
+  final notificationService = NotificationService.getInstance();
+  await notificationService.initialize();
 
   runApp(NapTapApp(settingsService: settingsService));
 }

@@ -34,6 +34,9 @@ dependencies:
   # Step counter for walk-to-dismiss
   pedometer: ^4.0.2
 
+  # Local notifications for alarm (works in silent mode)
+  flutter_local_notifications: ^18.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 class TimerService {
@@ -63,14 +64,30 @@ class TimerService {
     await _startForegroundService();
 
     // Start countdown timer
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (_remainingSeconds > 0) {
         _remainingSeconds--;
         _onTick?.call(_remainingSeconds);
         _updateNotification();
+        debugPrint('TimerService: $_remainingSeconds seconds remaining');
       } else {
-        stopTimer();
-        _onComplete?.call();
+        debugPrint('TimerService: Timer complete! Calling onComplete...');
+        timer.cancel();
+        _timer = null;
+        _isRunning = false;
+
+        // Call completion callback BEFORE stopping service
+        final callback = _onComplete;
+        if (callback != null) {
+          debugPrint('TimerService: Executing onComplete callback');
+          callback();
+        } else {
+          debugPrint('TimerService: WARNING - onComplete callback is null!');
+        }
+
+        // Stop foreground service after callback
+        await FlutterForegroundTask.stopService();
+        debugPrint('TimerService: Foreground service stopped');
       }
     });
   }
