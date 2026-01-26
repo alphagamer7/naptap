@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:vibration/vibration.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 class AlarmService {
   static AlarmService? _instance;
@@ -12,6 +15,7 @@ class AlarmService {
   Timer? _hapticTimer;
   bool _isPlaying = false;
   bool _audioAvailable = false;
+  bool _sessionConfigured = false;
 
   // Volume ramp settings
   static const double _startVolume = 0.1; // 10%
@@ -30,6 +34,43 @@ class AlarmService {
   }
 
   bool get isPlaying => _isPlaying;
+
+  /// Configure audio session to play even in silent mode on iOS
+  Future<void> _configureAudioSession() async {
+    if (_sessionConfigured) return;
+
+    try {
+      final session = await AudioSession.instance;
+
+      if (Platform.isIOS) {
+        // Configure for alarm-like playback that ignores silent mode
+        await session.configure(const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.duckOthers,
+          avAudioSessionMode: AVAudioSessionMode.defaultMode,
+          avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        ));
+      } else {
+        // Android configuration
+        await session.configure(const AudioSessionConfiguration(
+          androidAudioAttributes: AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.sonification,
+            usage: AndroidAudioUsage.alarm,
+            flags: AndroidAudioFlags.audibilityEnforced,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+          androidWillPauseWhenDucked: false,
+        ));
+      }
+
+      await session.setActive(true);
+      _sessionConfigured = true;
+      debugPrint('AlarmService: Audio session configured for ${Platform.isIOS ? "iOS" : "Android"}');
+    } catch (e) {
+      debugPrint('AlarmService: Failed to configure audio session: $e');
+    }
+  }
 
   Future<void> startAlarm({
     required bool playSound,
@@ -54,28 +95,38 @@ class AlarmService {
 
   Future<void> _startAudioWithRamp() async {
     try {
+      // Configure audio session FIRST (critical for iOS silent mode)
+      await _configureAudioSession();
+
       // Try to load from assets first
       try {
         await _audioPlayer.setAsset('assets/sounds/alarm.mp3');
         _audioAvailable = true;
-      } catch (_) {
+        debugPrint('AlarmService: Loaded alarm from assets');
+      } catch (e) {
+        debugPrint('AlarmService: Asset load failed: $e, trying URL fallback');
         // Fall back to URL-based sound
         try {
           await _audioPlayer.setUrl(_fallbackAlarmUrl);
           _audioAvailable = true;
-        } catch (_) {
+          debugPrint('AlarmService: Loaded alarm from URL');
+        } catch (e2) {
+          debugPrint('AlarmService: URL load failed: $e2');
           _audioAvailable = false;
         }
       }
 
       if (!_audioAvailable) {
+        debugPrint('AlarmService: No audio available, using haptic fallback');
         _startHapticLoop();
         return;
       }
 
       await _audioPlayer.setLoopMode(LoopMode.one);
       await _audioPlayer.setVolume(_startVolume);
+      debugPrint('AlarmService: Starting playback...');
       await _audioPlayer.play();
+      debugPrint('AlarmService: Playback started');
 
       // Start volume ramp
       double currentVolume = _startVolume;
@@ -94,6 +145,7 @@ class AlarmService {
         },
       );
     } catch (e) {
+      debugPrint('AlarmService: Audio playback error: $e');
       // Fallback: use haptic feedback loop
       _startHapticLoop();
     }
