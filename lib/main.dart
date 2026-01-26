@@ -11,9 +11,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Lock to portrait mode
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
+  try {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+  } catch (_) {}
 
   // Set system UI style
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -23,34 +25,47 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
-  // Initialize services
-  final settingsService = await SettingsService.getInstance();
-  final timerService = TimerService.getInstance();
-  await timerService.initialize();
+  // Initialize services with error handling
+  SettingsService? settingsService;
+  try {
+    settingsService = await SettingsService.getInstance();
+  } catch (_) {
+    settingsService = null;
+  }
+
+  try {
+    final timerService = TimerService.getInstance();
+    await timerService.initialize();
+  } catch (_) {}
 
   // Initialize notification service for alarm sounds
-  final notificationService = NotificationService.getInstance();
-  await notificationService.initialize();
+  try {
+    final notificationService = NotificationService.getInstance();
+    await notificationService.initialize();
+  } catch (_) {}
 
   runApp(NapTapApp(settingsService: settingsService));
 }
 
 class NapTapApp extends StatelessWidget {
-  final SettingsService settingsService;
+  final SettingsService? settingsService;
 
   const NapTapApp({
     super.key,
-    required this.settingsService,
+    this.settingsService,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Create a default settings service if none provided
+    final settings = settingsService ?? SettingsService.createDefault();
+
     return WithForegroundTask(
       child: MaterialApp(
         title: 'NapTap',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
-        home: HomeScreen(settingsService: settingsService),
+        home: HomeScreen(settingsService: settings),
       ),
     );
   }
