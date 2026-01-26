@@ -29,7 +29,11 @@ class StepCounterService {
     Function(int stepsWalked, int stepsRequired)? onStepUpdate,
     Function()? onGoalReached,
   }) async {
-    if (_isTracking) return;
+    debugPrint('StepCounter: startTracking called, isTracking=$_isTracking');
+    if (_isTracking) {
+      debugPrint('StepCounter: Already tracking, skipping');
+      return;
+    }
 
     this.onStepUpdate = onStepUpdate;
     this.onGoalReached = onGoalReached;
@@ -38,10 +42,12 @@ class StepCounterService {
     _currentSteps = 0;
 
     try {
+      debugPrint('StepCounter: Starting pedometer stream...');
       _stepSubscription = Pedometer.stepCountStream.listen(
         _onStepCount,
         onError: _onStepCountError,
       );
+      debugPrint('StepCounter: Pedometer stream started successfully');
     } catch (e) {
       debugPrint('StepCounter: Failed to start pedometer: $e');
       _isTracking = false;

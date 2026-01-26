@@ -254,84 +254,90 @@ class _NapScreenState extends State<NapScreen> with WidgetsBindingObserver {
                   ),
                 ),
 
-              // Alarm ringing state
+              // Alarm ringing state - shows WAKE UP screen with step counter
               if (_isAlarmRinging)
                 Center(
-                  child: AnimatedOpacity(
-                    opacity: _showTapHint ? 1.0 : 0.0,
-                    duration: AppTheme.fadeTransition,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.alarm,
-                          color: AppTheme.white.withAlpha(200),
-                          size: 64,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.alarm,
+                        color: AppTheme.white.withAlpha(200),
+                        size: 64,
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'WAKE UP',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: 8,
                         ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'WAKE UP',
-                          style: TextStyle(
-                            color: AppTheme.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.w300,
-                            letterSpacing: 8,
+                      ),
+                      const SizedBox(height: 32),
+                      // Step counter progress
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.directions_walk,
+                            color: AppTheme.lightGrey.withAlpha(180),
+                            size: 24,
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        // Step counter progress
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.directions_walk,
+                          const SizedBox(width: 12),
+                          Text(
+                            '$_stepsWalked / $_requiredSteps',
+                            style: const TextStyle(
+                              color: AppTheme.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w300,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'steps',
+                            style: TextStyle(
                               color: AppTheme.lightGrey.withAlpha(180),
-                              size: 20,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w300,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '$_stepsWalked / $_requiredSteps steps',
-                              style: TextStyle(
-                                color: AppTheme.lightGrey.withAlpha(180),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w300,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Progress bar
-                        Container(
-                          width: 200,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppTheme.grey,
-                            borderRadius: BorderRadius.circular(2),
                           ),
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: (_stepsWalked / _requiredSteps).clamp(0.0, 1.0),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: AppTheme.white,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Progress bar
+                      Container(
+                        width: 220,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AppTheme.grey,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            width: 220 * (_stepsWalked / _requiredSteps).clamp(0.0, 1.0),
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: AppTheme.white,
+                              borderRadius: BorderRadius.circular(3),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _stepsWalked >= _requiredSteps
-                              ? 'Tap to dismiss'
-                              : 'Walk to dismiss alarm',
-                          style: TextStyle(
-                            color: AppTheme.lightGrey.withAlpha(150),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w300,
-                          ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        _stepsWalked >= _requiredSteps
+                            ? 'Tap anywhere to dismiss'
+                            : 'Walk ${_requiredSteps - _stepsWalked} more steps to dismiss',
+                        style: TextStyle(
+                          color: AppTheme.lightGrey.withAlpha(200),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w300,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
 

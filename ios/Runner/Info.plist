@@ -49,5 +49,12 @@
 		<true/>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
+		<key>NSMotionUsageDescription</key>
+		<string>NapTap uses motion sensors to count your steps when dismissing the alarm.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>audio</string>
+			<string>fetch</string>
+		</array>
 	</dict>
 </plist>
