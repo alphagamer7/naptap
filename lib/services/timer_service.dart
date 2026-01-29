@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TimerService {
   static TimerService? _instance;
 
-  Timer? _timer;
+  Timer? _uiTimer;
   int _remainingSeconds = 0;
   bool _isRunning = false;
   Function()? _onComplete;
@@ -46,6 +47,32 @@ class TimerService {
         allowWifiLock: false,
       ),
     );
+
+    // Listen for data from the foreground task isolate
+    FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
+  }
+
+  void _onReceiveTaskData(Object data) {
+    final message = data.toString();
+    debugPrint('TimerService: Received from task: $message');
+
+    if (message == 'complete') {
+      debugPrint('TimerService: Timer complete from foreground task!');
+      _isRunning = false;
+      _remainingSeconds = 0;
+      _uiTimer?.cancel();
+      _uiTimer = null;
+
+      final callback = _onComplete;
+      if (callback != null) {
+        debugPrint('TimerService: Executing onComplete callback');
+        callback();
+      }
+    } else if (message.startsWith('tick:')) {
+      final seconds = int.tryParse(message.substring(5)) ?? 0;
+      _remainingSeconds = seconds;
+      _onTick?.call(seconds);
+    }
   }
 
   Future<void> startTimer({
@@ -60,60 +87,36 @@ class TimerService {
     _onTick = onTick;
     _isRunning = true;
 
-    // Start foreground service
-    await _startForegroundService();
+    // Save end time to SharedPreferences so the foreground task can read it
+    final endTime = DateTime.now().add(Duration(minutes: durationMinutes));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('nap_end_time', endTime.millisecondsSinceEpoch);
+    await prefs.setInt('nap_duration_seconds', durationMinutes * 60);
 
-    // Start countdown timer
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_remainingSeconds > 0) {
-        _remainingSeconds--;
-        _onTick?.call(_remainingSeconds);
-        _updateNotification();
-        debugPrint('TimerService: $_remainingSeconds seconds remaining');
-      } else {
-        debugPrint('TimerService: Timer complete! Calling onComplete...');
-        timer.cancel();
-        _timer = null;
-        _isRunning = false;
-
-        // Call completion callback BEFORE stopping service
-        final callback = _onComplete;
-        if (callback != null) {
-          debugPrint('TimerService: Executing onComplete callback');
-          callback();
-        } else {
-          debugPrint('TimerService: WARNING - onComplete callback is null!');
-        }
-
-        // Stop foreground service after callback
-        await FlutterForegroundTask.stopService();
-        debugPrint('TimerService: Foreground service stopped');
-      }
-    });
-  }
-
-  Future<void> _startForegroundService() async {
+    // Start foreground service - the real timer runs in NapTaskHandler
     await FlutterForegroundTask.startService(
       notificationTitle: 'NapTap',
       notificationText: 'Nap in progress...',
       callback: _startCallback,
     );
-  }
 
-  void _updateNotification() {
-    final minutes = _remainingSeconds ~/ 60;
-    final seconds = _remainingSeconds % 60;
-    FlutterForegroundTask.updateService(
-      notificationTitle: 'NapTap',
-      notificationText: '$minutes:${seconds.toString().padLeft(2, '0')} remaining',
-    );
+    debugPrint('TimerService: Started timer for $durationMinutes minutes, end time: $endTime');
   }
 
   Future<void> stopTimer() async {
-    _timer?.cancel();
-    _timer = null;
+    _uiTimer?.cancel();
+    _uiTimer = null;
     _isRunning = false;
     _remainingSeconds = 0;
+    _onComplete = null;
+    _onTick = null;
+
+    // Clear saved end time
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('nap_end_time');
+      await prefs.remove('nap_duration_seconds');
+    } catch (_) {}
 
     await FlutterForegroundTask.stopService();
   }
@@ -123,19 +126,64 @@ class TimerService {
   }
 }
 
-// Required callback for foreground service
+// Required callback for foreground service - runs in separate isolate
 @pragma('vm:entry-point')
 void _startCallback() {
   FlutterForegroundTask.setTaskHandler(NapTaskHandler());
 }
 
 class NapTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
+  int _endTimeMs = 0;
+  bool _completed = false;
 
   @override
-  void onRepeatEvent(DateTime timestamp) {}
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    debugPrint('NapTaskHandler: onStart called');
+
+    // Read end time from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    _endTimeMs = prefs.getInt('nap_end_time') ?? 0;
+    _completed = false;
+
+    debugPrint('NapTaskHandler: End time = ${DateTime.fromMillisecondsSinceEpoch(_endTimeMs)}');
+  }
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {}
+  void onRepeatEvent(DateTime timestamp) {
+    if (_completed || _endTimeMs == 0) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final remainingMs = _endTimeMs - now;
+
+    if (remainingMs <= 0) {
+      // Timer complete!
+      _completed = true;
+      debugPrint('NapTaskHandler: Timer complete!');
+
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'NapTap',
+        notificationText: 'Wake up! Your nap is over.',
+      );
+
+      // Notify the main app
+      FlutterForegroundTask.sendDataToMain('complete');
+    } else {
+      final remainingSeconds = (remainingMs / 1000).ceil();
+      final minutes = remainingSeconds ~/ 60;
+      final seconds = remainingSeconds % 60;
+
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'NapTap',
+        notificationText: '$minutes:${seconds.toString().padLeft(2, '0')} remaining',
+      );
+
+      // Send tick to main app for UI updates
+      FlutterForegroundTask.sendDataToMain('tick:$remainingSeconds');
+    }
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {
+    debugPrint('NapTaskHandler: onDestroy called');
+  }
 }
